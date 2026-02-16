@@ -27,3 +27,16 @@ dependencies = [
     "typer>=0.23.1",
     "xlrd>=2.0.2",
 ]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.uv]
+package = true
+
+[project.scripts]
+datatui = "datatui.cli.main:main"
+
+[tool.hatch.build.targets.wheel]
+packages = ["datatui"]
