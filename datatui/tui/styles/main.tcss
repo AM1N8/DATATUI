@@ -1,0 +1,224 @@
+Screen {
+    background: #0d1117;
+}
+
+Header {
+    background: #161b22;
+    color: #c9d1d9;
+    dock: top;
+    height: 3;
+    content-align: center middle;
+}
+
+Footer {
+    background: #161b22;
+    color: #8b949e;
+    dock: bottom;
+    height: 1;
+}
+
+#sidebar {
+    width: 28;
+    background: #161b22;
+    border-right: solid #30363d;
+    padding: 1 0;
+}
+
+#sidebar ListView {
+    background: #161b22;
+}
+
+#sidebar ListItem {
+    padding: 0 2;
+    height: 3;
+    color: #8b949e;
+}
+
+#sidebar ListItem:hover {
+    background: #1c2129;
+    color: #58a6ff;
+}
+
+#sidebar ListItem.-active {
+    background: #1f6feb;
+    color: #ffffff;
+}
+
+#main-content {
+    background: #0d1117;
+    padding: 1 2;
+}
+
+.screen-title {
+    color: #58a6ff;
+    text-style: bold;
+    margin-bottom: 1;
+}
+
+.stat-card {
+    background: #161b22;
+    border: solid #30363d;
+    padding: 1 2;
+    height: auto;
+    min-height: 5;
+    margin: 0 1 1 0;
+}
+
+.stat-card .card-label {
+    color: #8b949e;
+    text-style: none;
+}
+
+.stat-card .card-value {
+    color: #c9d1d9;
+    text-style: bold;
+}
+
+.stat-card.success .card-value {
+    color: #3fb950;
+}
+
+.stat-card.warning .card-value {
+    color: #d29922;
+}
+
+.stat-card.error .card-value {
+    color: #f85149;
+}
+
+.stat-card.info .card-value {
+    color: #58a6ff;
+}
+
+.quality-bar {
+    height: 3;
+    background: #161b22;
+    border: solid #30363d;
+    padding: 0 1;
+}
+
+.quality-bar ProgressBar {
+    padding: 0;
+}
+
+.mini-chart {
+    background: #161b22;
+    border: solid #30363d;
+    padding: 1;
+    min-height: 8;
+}
+
+DataTable {
+    background: #161b22;
+    color: #c9d1d9;
+}
+
+DataTable > .datatable--header {
+    background: #1c2129;
+    color: #58a6ff;
+    text-style: bold;
+}
+
+DataTable > .datatable--cursor {
+    background: #1f6feb;
+    color: #ffffff;
+}
+
+DataTable > .datatable--hover {
+    background: #1c2129;
+}
+
+Input {
+    background: #161b22;
+    border: solid #30363d;
+    color: #c9d1d9;
+}
+
+Input:focus {
+    border: solid #58a6ff;
+}
+
+TabbedContent ContentSwitcher {
+    background: #0d1117;
+}
+
+TabbedContent TabPane {
+    background: #0d1117;
+    padding: 1;
+}
+
+Tabs {
+    background: #161b22;
+}
+
+Tab {
+    color: #8b949e;
+    background: #161b22;
+}
+
+Tab:hover {
+    color: #58a6ff;
+    background: #1c2129;
+}
+
+Tab.-active {
+    color: #58a6ff;
+    background: #0d1117;
+    text-style: bold;
+}
+
+LoadingIndicator {
+    color: #58a6ff;
+    background: #0d1117;
+}
+
+Label {
+    color: #c9d1d9;
+}
+
+.section-header {
+    color: #58a6ff;
+    text-style: bold;
+    margin: 1 0;
+    padding: 0 1;
+    border-bottom: solid #30363d;
+}
+
+.dim-text {
+    color: #8b949e;
+}
+
+.alert-card {
+    background: #161b22;
+    border: solid #30363d;
+    padding: 1 2;
+    margin: 0 0 1 0;
+}
+
+.alert-card.alert-warning {
+    border: solid #d29922;
+}
+
+.alert-card.alert-error {
+    border: solid #f85149;
+}
+
+.alert-card.alert-info {
+    border: solid #58a6ff;
+}
+
+Horizontal {
+    height: auto;
+}
+
+.cards-row {
+    height: auto;
+    margin-bottom: 1;
+}
+
+.detail-panel {
+    background: #161b22;
+    border: solid #30363d;
+    padding: 1 2;
+    width: 1fr;
+}

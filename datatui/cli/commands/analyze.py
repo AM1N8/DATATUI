@@ -1,126 +1,119 @@
-import typer
+import json
 from pathlib import Path
-from rich.console import Console
-from rich.progress import Progress, SpinnerColumn, TextColumn, BarColumn
+from typing import Optional
+from dataclasses import asdict
 
-from datatui.core.loader import load_dataset
-from datatui.core.analyzer import DataAnalyzer
-from datatui.cli.output.console import print_header, print_success, print_error
+import typer
 
-app = typer.Typer()
-console = Console()
+from datatui.cli.output.console import (
+    console,
+    print_banner,
+    print_section,
+    print_success,
+    print_json_output,
+    print_error_panel,
+)
+from datatui.cli.output.tables import (
+    build_schema_table,
+    build_numeric_stats_table,
+    build_categorical_stats_table,
+    build_missing_table,
+    build_outliers_table,
+    build_top_correlations_table,
+    build_distributions_table,
+    build_quality_table,
+)
+from datatui.cli.utils.validators import validate_file_path, load_dataframe
+from datatui.cli.utils.progress import create_spinner
+
+__all__ = ["run_analyze"]
 
 
-@app.command()
-def full(
-    file_path: Path = typer.Argument(..., help="Path to dataset file"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Save results to JSON"),
-    skip_multivariate: bool = typer.Option(False, "--skip-multivariate", help="Skip multivariate outlier detection")
-):
-    """Run complete analysis on dataset."""
-    
-    print_header(f"Analyzing: {file_path.name}")
-    
+def run_analyze(
+    file: Path,
+    output: Optional[Path] = None,
+    skip_multivariate: bool = False,
+    columns: Optional[str] = None,
+    json_output: bool = False,
+    quiet: bool = False,
+) -> None:
     try:
-        df = load_dataset(file_path)
-        analyzer = DataAnalyzer(df, dataset_name=file_path.stem)
-        
-        with Progress(
-            SpinnerColumn(),
-            TextColumn("[progress.description]{task.description}"),
-            BarColumn(),
-            console=console
-        ) as progress:
-            
-            task = progress.add_task("[cyan]Running analysis...", total=7)
-            
-            progress.update(task, description="[cyan]Analyzing schema...")
-            analyzer.analyze_schema()
-            progress.advance(task)
-            
-            progress.update(task, description="[cyan]Computing statistics...")
-            analyzer.analyze_statistics()
-            progress.advance(task)
-            
-            progress.update(task, description="[cyan]Checking missing values...")
-            analyzer.analyze_missing()
-            progress.advance(task)
-            
-            progress.update(task, description="[cyan]Detecting outliers...")
-            analyzer.analyze_outliers(skip_multivariate=skip_multivariate)
-            progress.advance(task)
-            
-            progress.update(task, description="[cyan]Calculating correlations...")
-            analyzer.analyze_correlations()
-            progress.advance(task)
-            
-            progress.update(task, description="[cyan]Analyzing distributions...")
-            analyzer.analyze_distributions()
-            progress.advance(task)
-            
-            progress.update(task, description="[cyan]Finalizing...")
-            results = analyzer.analyze_all(skip_multivariate_outliers=skip_multivariate)
-            progress.advance(task)
-        
-        console.print(f"\n[bold green]✓[/bold green] Analysis complete in {results.analysis_time_seconds:.2f}s")
-        console.print(f"  • {results.total_rows:,} rows × {results.total_columns} columns")
-        console.print(f"  • {results.memory_mb:.2f} MB in memory")
-        
-        if output:
-            import json
-            from dataclasses import asdict
-            
-            with open(output, 'w') as f:
-                json.dump(asdict(results), f, indent=2, default=str)
-            
-            print_success(f"Results saved to {output}")
-        
-    except Exception as e:
-        print_error(f"Analysis failed: {e}")
+        file = validate_file_path(file)
+    except typer.BadParameter as e:
+        print_error_panel("File Error", str(e))
         raise typer.Exit(1)
 
+    if not quiet and not json_output:
+        print_banner()
 
-@app.command()
-def column(
-    file_path: Path = typer.Argument(..., help="Path to dataset file"),
-    column_name: str = typer.Argument(..., help="Column to analyze")
-):
-    """Analyze a specific column in detail."""
-    
     try:
-        df = load_dataset(file_path)
-        analyzer = DataAnalyzer(df)
-        
-        col_analysis = analyzer.get_column_analysis(column_name)
-        
-        if 'error' in col_analysis:
-            print_error(col_analysis['error'])
-            raise typer.Exit(1)
-        
-        console.print(f"\n[bold cyan]Column:[/bold cyan] {column_name}\n")
-        
-        if 'schema' in col_analysis:
-            schema = col_analysis['schema']
-            console.print(f"[cyan]Type:[/cyan] {schema['data_type']}")
-            console.print(f"[cyan]Semantic:[/cyan] {schema['semantic_type']}")
-            console.print(f"[cyan]Unique values:[/cyan] {schema['unique_count']:,}")
-            console.print(f"[cyan]Null percentage:[/cyan] {schema['null_percentage']:.2f}%")
-        
-        if 'statistics' in col_analysis:
-            stats = col_analysis['statistics']
-            console.print(f"\n[bold]Statistics:[/bold]")
-            if 'mean' in stats:
-                console.print(f"  Mean: {stats['mean']:.2f}")
-                console.print(f"  Median: {stats['median']:.2f}")
-                console.print(f"  Std: {stats['std']:.2f}")
-                console.print(f"  Skewness: {stats['skewness']:.3f}")
-        
-        if 'outliers' in col_analysis:
-            outliers = col_analysis['outliers']
-            console.print(f"\n[bold]Outliers:[/bold]")
-            console.print(f"  IQR method: {outliers['iqr_outlier_count']} ({outliers['iqr_outlier_count']/outliers['total_count']*100:.2f}%)")
-            console.print(f"  Z-score method: {outliers['zscore_outlier_count']}")
-        
+        with create_spinner("Loading dataset"):
+            df, dataset_info = load_dataframe(file)
     except Exception as e:
-        print_error(f"Error: {e}")
+        print_error_panel("Load Error", str(e))
         raise typer.Exit(1)
+
+    if columns:
+        selected = [c.strip() for c in columns.split(",")]
+        valid_cols = [c for c in selected if c in df.columns]
+        if valid_cols:
+            df = df.select(valid_cols)
+
+    from datatui.core.analyzer import DataAnalyzer
+
+    analyzer = DataAnalyzer(df, dataset_name=file.stem)
+
+    with create_spinner("Running full analysis"):
+        result = analyzer.analyze_all(skip_multivariate_outliers=skip_multivariate)
+
+    result_dict = asdict(result)
+
+    if output:
+        with open(output, "w") as f:
+            json.dump(result_dict, f, indent=2, default=str)
+        print_success(f"Results saved to {output}")
+        if quiet:
+            raise typer.Exit(0)
+
+    if json_output:
+        print_json_output(result_dict)
+        raise typer.Exit(0)
+
+    if quiet:
+        console.print(
+            f"Analysis complete: {result.total_rows:,} rows x {result.total_columns} cols"
+        )
+        raise typer.Exit(0)
+
+    quality = analyzer.get_data_quality_score()
+    console.print(build_quality_table(quality))
+
+    print_section("Schema")
+    schema = analyzer.analyze_schema()
+    console.print(build_schema_table(schema))
+
+    print_section("Statistics")
+    statistics = analyzer.analyze_statistics()
+    console.print(build_numeric_stats_table(statistics))
+    console.print(build_categorical_stats_table(statistics))
+
+    print_section("Missing Values")
+    missing = analyzer.analyze_missing()
+    console.print(build_missing_table(missing))
+
+    print_section("Outliers")
+    outlier_data = analyzer.analyze_outliers(skip_multivariate=skip_multivariate)
+    summary = outlier_data.get("summary", {})
+    outliers_by_col = summary.get("outliers_by_column", {})
+    console.print(build_outliers_table(outliers_by_col))
+
+    print_section("Top Correlations")
+    corr_data = analyzer.analyze_correlations()
+    top_corrs = corr_data.get("top_correlations", [])
+    console.print(build_top_correlations_table(top_corrs))
+
+    print_section("Distributions")
+    dist_data = analyzer.analyze_distributions()
+    console.print(build_distributions_table(dist_data))
+
+    print_success(f"Full analysis complete in {result.analysis_time_seconds:.3f}s")

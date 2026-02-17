@@ -1,1 +1,3 @@
-__version__ = "0.1.0"
+from datatui.cli.main import app, main
+
+__all__ = ["app", "main"]

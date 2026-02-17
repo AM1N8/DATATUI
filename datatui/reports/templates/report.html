@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>DataTUI Report - {{ dataset_name }}</title>
+    <style>
+        :root {
+            --bg: #0d1117;
+            --surface: #161b22;
+            --surface-2: #1c2129;
+            --primary: #58a6ff;
+            --secondary: #1f6feb;
+            --success: #3fb950;
+            --warning: #d29922;
+            --error: #f85149;
+            --text: #c9d1d9;
+            --dim: #8b949e;
+            --border: #30363d;
+        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 2rem; }
+        header {
+            background: linear-gradient(135deg, var(--surface), var(--surface-2));
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+        header h1 {
+            color: var(--primary);
+            font-size: 2rem;
+            margin-bottom: 0.5rem;
+        }
+        header .meta { color: var(--dim); font-size: 0.9rem; }
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 1rem;
+            margin-bottom: 2rem;
+        }
+        .card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.25rem;
+        }
+        .card .label { color: var(--dim); font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.5px; }
+        .card .value { color: var(--text); font-size: 1.5rem; font-weight: 600; margin-top: 0.25rem; }
+        .card.excellent .value { color: var(--success); }
+        .card.good .value { color: var(--success); }
+        .card.fair .value { color: var(--warning); }
+        .card.poor .value { color: var(--error); }
+        section {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            padding: 1.5rem;
+            margin-bottom: 1.5rem;
+        }
+        section h2 {
+            color: var(--primary);
+            font-size: 1.25rem;
+            margin-bottom: 1rem;
+            padding-bottom: 0.5rem;
+            border-bottom: 1px solid var(--border);
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.9rem;
+        }
+        th {
+            text-align: left;
+            padding: 0.5rem 0.75rem;
+            background: var(--surface-2);
+            color: var(--primary);
+            border-bottom: 2px solid var(--border);
+            font-weight: 600;
+        }
+        td {
+            padding: 0.5rem 0.75rem;
+            border-bottom: 1px solid var(--border);
+        }
+        tr:hover td { background: var(--surface-2); }
+        .tag {
+            display: inline-block;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-size: 0.8rem;
+            font-weight: 500;
+        }
+        .tag-success { background: rgba(63,185,80,0.15); color: var(--success); }
+        .tag-warning { background: rgba(210,153,34,0.15); color: var(--warning); }
+        .tag-error { background: rgba(248,81,73,0.15); color: var(--error); }
+        .tag-info { background: rgba(88,166,255,0.15); color: var(--primary); }
+        .bar-container { background: var(--surface-2); border-radius: 4px; height: 8px; overflow: hidden; }
+        .bar-fill { height: 100%; border-radius: 4px; transition: width 0.3s; }
+        .bar-success { background: var(--success); }
+        .bar-warning { background: var(--warning); }
+        .bar-error { background: var(--error); }
+        footer {
+            text-align: center;
+            color: var(--dim);
+            padding: 2rem 0;
+            font-size: 0.85rem;
+        }
+    </style>
+</head>
+<body>
+<div class="container">
+    <header>
+        <h1>DataTUI Analysis Report</h1>
+        <div class="meta">{{ dataset_name }} | {{ total_rows }} rows x {{ total_columns }} columns | {{ memory_mb }} MB</div>
+    </header>
+
+    <div class="cards">
+        <div class="card {{ quality_rating }}">
+            <div class="label">Quality Score</div>
+            <div class="value">{{ quality_score }}/100</div>
+        </div>
+        <div class="card">
+            <div class="label">Rows</div>
+            <div class="value">{{ total_rows }}</div>
+        </div>
+        <div class="card">
+            <div class="label">Columns</div>
+            <div class="value">{{ total_columns }}</div>
+        </div>
+        <div class="card">
+            <div class="label">Missing</div>
+            <div class="value">{{ missing_pct }}%</div>
+        </div>
+    </div>
+
+    <section>
+        <h2>Schema</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>DType</th>
+                    <th>Type</th>
+                    <th>Semantic</th>
+                    <th>Unique</th>
+                    <th>Nulls</th>
+                    <th>Null %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for col in schema_rows %}
+                <tr>
+                    <td>{{ col.name }}</td>
+                    <td>{{ col.dtype }}</td>
+                    <td><span class="tag tag-info">{{ col.data_type }}</span></td>
+                    <td>{{ col.semantic_type }}</td>
+                    <td>{{ col.unique_count }}</td>
+                    <td>{{ col.null_count }}</td>
+                    <td>
+                        <span class="tag {% if col.null_pct > 50 %}tag-error{% elif col.null_pct > 10 %}tag-warning{% elif col.null_pct > 0 %}tag-info{% else %}tag-success{% endif %}">
+                            {{ col.null_pct }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Missing Values</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>Missing</th>
+                    <th>Present</th>
+                    <th>Missing %</th>
+                    <th>Bar</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for col in missing_rows %}
+                <tr>
+                    <td>{{ col.name }}</td>
+                    <td>{{ col.missing }}</td>
+                    <td>{{ col.present }}</td>
+                    <td>{{ col.pct }}%</td>
+                    <td>
+                        <div class="bar-container">
+                            <div class="bar-fill {% if col.pct > 50 %}bar-error{% elif col.pct > 10 %}bar-warning{% else %}bar-success{% endif %}"
+                                 style="width: {{ col.pct }}%"></div>
+                        </div>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Outliers</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>IQR</th>
+                    <th>Z-Score</th>
+                    <th>MAD</th>
+                    <th>Outlier %</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for col in outlier_rows %}
+                <tr>
+                    <td>{{ col.name }}</td>
+                    <td>{{ col.iqr }}</td>
+                    <td>{{ col.zscore }}</td>
+                    <td>{{ col.mad }}</td>
+                    <td>
+                        <span class="tag {% if col.pct > 20 %}tag-error{% elif col.pct > 5 %}tag-warning{% else %}tag-success{% endif %}">
+                            {{ col.pct }}%
+                        </span>
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Top Correlations</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Column 1</th>
+                    <th>Column 2</th>
+                    <th>Correlation</th>
+                    <th>Method</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for pair in correlation_rows %}
+                <tr>
+                    <td>{{ pair.col1 }}</td>
+                    <td>{{ pair.col2 }}</td>
+                    <td>
+                        <span class="tag {% if pair.abs_corr > 0.8 %}tag-error{% elif pair.abs_corr > 0.5 %}tag-warning{% else %}tag-info{% endif %}">
+                            {{ pair.corr }}
+                        </span>
+                    </td>
+                    <td>{{ pair.method }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <section>
+        <h2>Distributions</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>Column</th>
+                    <th>Type</th>
+                    <th>Normal</th>
+                    <th>Skewness</th>
+                    <th>Kurtosis</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for col in distribution_rows %}
+                <tr>
+                    <td>{{ col.name }}</td>
+                    <td>{{ col.dist_type }}</td>
+                    <td>
+                        <span class="tag {% if col.is_normal %}tag-success{% else %}tag-info{% endif %}">
+                            {% if col.is_normal %}Yes{% else %}No{% endif %}
+                        </span>
+                    </td>
+                    <td>{{ col.skewness }}</td>
+                    <td>{{ col.kurtosis }}</td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </section>
+
+    <footer>
+        Generated by DataTUI | {{ generation_time }}
+    </footer>
+</div>
+</body>
+</html>

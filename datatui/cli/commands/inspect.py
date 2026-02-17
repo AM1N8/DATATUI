@@ -1,118 +1,115 @@
-import typer
 from pathlib import Path
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
+from typing import Optional
+from dataclasses import asdict
 
-from datatui.core.loader import load_dataset, LoaderError
-from datatui.core.analyzer import quick_analyze, get_data_quality_score
-from datatui.cli.output.console import print_header, print_success, print_error
-from datatui.cli.utils.spinner import with_spinner
+import typer
 
-app = typer.Typer()
-console = Console()
+from datatui.cli.output.console import (
+    console,
+    print_banner,
+    print_section,
+    print_success,
+    print_info,
+    print_json_output,
+    print_error_panel,
+    format_memory,
+    format_percentage,
+)
+from datatui.cli.output.tables import (
+    build_inspect_table,
+    build_quality_table,
+    build_type_distribution_table,
+)
+from datatui.cli.utils.validators import validate_file_path, load_dataframe
+from datatui.cli.utils.progress import create_spinner
+
+__all__ = ["run_inspect"]
 
 
-@app.command()
-def quick(
-    file_path: Path = typer.Argument(..., help="Path to dataset file"),
-    show_quality: bool = typer.Option(True, "--quality/--no-quality", help="Show data quality score")
-):
-    """Quick dataset overview."""
-    
-    print_header(f"Inspecting: {file_path.name}")
-    
+def run_inspect(
+    file: Path,
+    no_quality: bool = False,
+    sample: int = 5,
+    json_output: bool = False,
+    quiet: bool = False,
+) -> None:
     try:
-        df = with_spinner(
-            lambda: load_dataset(file_path),
-            text="Loading dataset..."
-        )
-        
-        summary = quick_analyze(df, dataset_name=file_path.stem)
-        
-        table = Table(title="Dataset Overview", show_header=False)
-        table.add_column("Property", style="cyan")
-        table.add_column("Value", style="green")
-        
-        table.add_row("Dataset", summary['dataset_name'])
-        table.add_row("Rows", f"{summary['rows']:,}")
-        table.add_row("Columns", f"{summary['columns']}")
-        table.add_row("Memory", f"{summary['memory_mb']:.2f} MB")
-        table.add_row("Missing", f"{summary['missing_percentage']:.2f}%")
-        
-        for dtype, count in summary['column_types'].items():
-            table.add_row(f"  {dtype}", f"{count} columns")
-        
-        console.print(table)
-        
-        if show_quality:
-            quality = with_spinner(
-                lambda: get_data_quality_score(df),
-                text="Calculating quality score..."
-            )
-            
-            quality_color = "green" if quality['quality_rating'] == 'excellent' else \
-                          "yellow" if quality['quality_rating'] == 'good' else \
-                          "red"
-            
-            console.print(Panel(
-                f"[bold {quality_color}]{quality['overall_score']:.1f}/100[/bold {quality_color}] - {quality['quality_rating'].upper()}",
-                title="🏆 Data Quality Score"
-            ))
-        
-        print_success("Inspection complete!")
-        
-    except LoaderError as e:
-        print_error(f"Failed to load dataset: {e}")
-        raise typer.Exit(1)
-    except Exception as e:
-        print_error(f"Unexpected error: {e}")
+        file = validate_file_path(file)
+    except typer.BadParameter as e:
+        print_error_panel("File Error", str(e))
         raise typer.Exit(1)
 
+    if not quiet and not json_output:
+        print_banner()
 
-@app.command()
-def columns(
-    file_path: Path = typer.Argument(..., help="Path to dataset file"),
-    limit: int = typer.Option(None, "--limit", "-n", help="Limit number of columns to show")
-):
-    """List all columns with basic info."""
-    
     try:
-        df = with_spinner(
-            lambda: load_dataset(file_path),
-            text="Loading dataset..."
-        )
-        
-        from ...core.schema import detect_schema
-        
-        schema = with_spinner(
-            lambda: detect_schema(df),
-            text="Detecting schema..."
-        )
-        
-        table = Table(title="Columns")
-        table.add_column("Column", style="cyan")
-        table.add_column("Type", style="green")
-        table.add_column("Semantic", style="yellow")
-        table.add_column("Nulls", style="red")
-        table.add_column("Unique", style="magenta")
-        
-        columns_to_show = list(schema.items())[:limit] if limit else list(schema.items())
-        
-        for col_name, col_info in columns_to_show:
-            table.add_row(
-                col_name,
-                col_info.data_type.value,
-                col_info.semantic_type.value,
-                f"{col_info.null_percentage:.1f}%",
-                f"{col_info.unique_count:,}"
-            )
-        
-        console.print(table)
-        
-        if limit and len(schema) > limit:
-            console.print(f"\n[dim]Showing {limit} of {len(schema)} columns[/dim]")
-        
+        with create_spinner("Loading dataset"):
+            df, dataset_info = load_dataframe(file)
     except Exception as e:
-        print_error(f"Error: {e}")
+        print_error_panel("Load Error", str(e))
         raise typer.Exit(1)
+
+    from datatui.core.analyzer import DataAnalyzer
+
+    analyzer = DataAnalyzer(df, dataset_name=file.stem)
+
+    info = {
+        "rows": dataset_info.rows,
+        "columns": dataset_info.columns,
+        "memory_mb": dataset_info.file_size_mb,
+        "format": dataset_info.format,
+        "file_path": str(dataset_info.file_path),
+        "load_time": dataset_info.load_time_seconds,
+        "column_names": dataset_info.column_names,
+    }
+
+    quality = None
+    if not no_quality:
+        with create_spinner("Computing quality score"):
+            quality = analyzer.get_data_quality_score()
+
+    schema = analyzer.analyze_schema()
+
+    if json_output:
+        output = {"dataset": info, "quality": quality, "schema_summary": schema.get("type_distribution", {})}
+        print_json_output(output)
+        raise typer.Exit(0)
+
+    if quiet:
+        console.print(f"{info['rows']:,} rows x {info['columns']} cols | {format_memory(info['memory_mb'])}")
+        raise typer.Exit(0)
+
+    console.print(build_inspect_table(info))
+
+    type_dist = schema.get("type_distribution", {})
+    if type_dist:
+        console.print(build_type_distribution_table(type_dist))
+
+    if quality:
+        console.print(build_quality_table(quality))
+
+    if sample > 0:
+        print_section("Data Sample")
+        from rich.table import Table
+        from rich import box as rich_box
+
+        sample_df = df.head(sample)
+        sample_table = Table(
+            title=f"First {sample} Rows",
+            box=rich_box.SIMPLE,
+            border_style="cyan",
+            show_lines=False,
+        )
+        for col in sample_df.columns:
+            sample_table.add_column(col[:20], style="white", max_width=25)
+        for row in sample_df.iter_rows():
+            sample_table.add_row(*[str(v)[:25] for v in row])
+        console.print(sample_table)
+
+    if dataset_info.warnings:
+        print_section("Warnings")
+        for warning in dataset_info.warnings:
+            from datatui.cli.output.console import print_warning
+            print_warning(warning)
+
+    print_success(f"Inspection complete in {dataset_info.load_time_seconds:.3f}s")

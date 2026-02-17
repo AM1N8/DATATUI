@@ -1,125 +1,137 @@
-import typer
 from pathlib import Path
 from typing import Optional
-from rich.console import Console
 
-console = Console()
+import typer
+
+__all__ = ["app", "main"]
 
 app = typer.Typer(
     name="datatui",
-    help="🦇 Datatui - Explore the castle of your data",
-    add_completion=True,
+    help="DataTUI - Data Analysis Toolkit for your Terminal",
+    no_args_is_help=True,
     rich_markup_mode="rich",
-    no_args_is_help=True
 )
 
 
 @app.command()
-def version():
-    """Show version information."""
-    console.print(f"[bold cyan]Datatui[/bold cyan] version [green]0.1.0[/green]")
-
-
-@app.command()
 def inspect(
-    file_path: Path = typer.Argument(..., help="Path to dataset file")
-):
-    """Quick dataset inspection."""
-    from datatui.core.loader import load_dataset
-    from datatui.core.analyzer import quick_analyze, get_data_quality_score
-    from rich.table import Table
-    from rich.panel import Panel
-    
-    console.print(f"[bold cyan]Inspecting:[/bold cyan] {file_path.name}\n")
-    
-    try:
-        with console.status("[bold cyan]Loading dataset...", spinner="dots"):
-            df = load_dataset(file_path)
-        
-        summary = quick_analyze(df, dataset_name=file_path.stem)
-        
-        table = Table(title="Dataset Overview", show_header=False)
-        table.add_column("Property", style="cyan")
-        table.add_column("Value", style="green")
-        
-        table.add_row("Dataset", summary['dataset_name'])
-        table.add_row("Rows", f"{summary['rows']:,}")
-        table.add_row("Columns", f"{summary['columns']}")
-        table.add_row("Memory", f"{summary['memory_mb']:.2f} MB")
-        table.add_row("Missing", f"{summary['missing_percentage']:.2f}%")
-        
-        for dtype, count in summary['column_types'].items():
-            table.add_row(f"  {dtype}", f"{count} columns")
-        
-        console.print(table)
-        
-        with console.status("[bold cyan]Calculating quality score...", spinner="dots"):
-            quality = get_data_quality_score(df)
-        
-        quality_color = "green" if quality['quality_rating'] == 'excellent' else \
-                      "yellow" if quality['quality_rating'] == 'good' else "red"
-        
-        console.print(Panel(
-            f"[bold {quality_color}]{quality['overall_score']:.1f}/100[/bold {quality_color}] - {quality['quality_rating'].upper()}",
-            title="🏆 Data Quality Score"
-        ))
-        
-        console.print("\n[bold green]✓[/bold green] Inspection complete!")
-        
-    except Exception as e:
-        console.print(f"[bold red]✗ Error:[/bold red] {e}")
-        raise typer.Exit(1)
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    no_quality: bool = typer.Option(False, "--no-quality", help="Skip quality score calculation"),
+    sample: int = typer.Option(5, "--sample", "-s", help="Number of sample rows to display"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.inspect import run_inspect
+    run_inspect(file, no_quality, sample, json_output, quiet)
 
 
 @app.command()
 def analyze(
-    file_path: Path = typer.Argument(..., help="Path to dataset file"),
-    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Save results to JSON")
-):
-    """Run full analysis on dataset."""
-    from datatui.core.loader import load_dataset
-    from datatui.core.analyzer import DataAnalyzer
-    
-    console.print(f"[bold cyan]Analyzing:[/bold cyan] {file_path.name}\n")
-    
-    try:
-        df = load_dataset(file_path)
-        analyzer = DataAnalyzer(df, dataset_name=file_path.stem)
-        
-        with console.status("[bold cyan]Running complete analysis...", spinner="dots"):
-            results = analyzer.analyze_all()
-        
-        console.print(f"\n[bold green]✓[/bold green] Analysis complete in {results.analysis_time_seconds:.2f}s")
-        console.print(f"  • {results.total_rows:,} rows × {results.total_columns} columns")
-        console.print(f"  • {results.memory_mb:.2f} MB in memory")
-        
-        if output:
-            import json
-            from dataclasses import asdict
-            
-            with open(output, 'w') as f:
-                json.dump(asdict(results), f, indent=2, default=str)
-            
-            console.print(f"\n[bold green]✓[/bold green] Results saved to {output}")
-        
-    except Exception as e:
-        console.print(f"[bold red]✗ Error:[/bold red] {e}")
-        raise typer.Exit(1)
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Save results to JSON file"),
+    skip_multivariate: bool = typer.Option(False, "--skip-multivariate", help="Skip multivariate outlier detection"),
+    columns: Optional[str] = typer.Option(None, "--columns", "-c", help="Comma-separated column names to analyze"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.analyze import run_analyze
+    run_analyze(file, output, skip_multivariate, columns, json_output, quiet)
 
 
-@app.callback()
-def callback():
-    """
-    🦇 Datatui - A powerful dataset analysis tool.
-    
-    Explore, analyze, and understand your data through the terminal.
-    """
-    pass
+@app.command()
+def schema(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    column: Optional[str] = typer.Option(None, "--column", "-c", help="Show details for a specific column"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.schema import run_schema
+    run_schema(file, column, json_output, quiet)
 
 
-def main():
+@app.command()
+def stats(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    column: Optional[str] = typer.Option(None, "--column", "-c", help="Analyze a specific column"),
+    numeric_only: bool = typer.Option(False, "--numeric-only", help="Show only numeric columns"),
+    categorical_only: bool = typer.Option(False, "--categorical-only", help="Show only categorical columns"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.stats import run_stats
+    run_stats(file, column, numeric_only, categorical_only, json_output, quiet)
+
+
+@app.command()
+def missing(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    threshold: float = typer.Option(0.0, "--threshold", "-t", help="Only show columns above this missing percentage"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.missing import run_missing
+    run_missing(file, threshold, json_output, quiet)
+
+
+@app.command()
+def outliers(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    method: str = typer.Option("all", "--method", "-m", help="Detection method: iqr, zscore, mad, all"),
+    column: Optional[str] = typer.Option(None, "--column", "-c", help="Analyze a specific column"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.outliers import run_outliers
+    run_outliers(file, method, column, json_output, quiet)
+
+
+@app.command()
+def correlations(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    method: str = typer.Option("pearson", "--method", "-m", help="Correlation method: pearson, spearman, all"),
+    min_corr: float = typer.Option(0.3, "--min", help="Minimum correlation to display"),
+    top: int = typer.Option(20, "--top", "-n", help="Number of top correlations to show"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.correlations import run_correlations
+    run_correlations(file, method, min_corr, top, json_output, quiet)
+
+
+@app.command()
+def distributions(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    column: Optional[str] = typer.Option(None, "--column", "-c", help="Analyze a specific column"),
+    bins: int = typer.Option(30, "--bins", "-b", help="Number of histogram bins"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.distributions import run_distributions
+    run_distributions(file, column, bins, json_output, quiet)
+
+
+@app.command()
+def report(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    open_report: bool = typer.Option(False, "--open", help="Open report in browser after generation"),
+    json_output: bool = typer.Option(False, "--json", help="Output results as JSON"),
+    quiet: bool = typer.Option(False, "--quiet", "-q", help="Minimal output"),
+) -> None:
+    from datatui.cli.commands.report import run_report
+    run_report(file, output, open_report, json_output, quiet)
+
+
+@app.command()
+def tui(
+    file_path: Path = typer.Argument(..., help="Path to the dataset file to explore"),
+    theme: str = typer.Option("dark", "--theme", "-t", help="TUI theme: dark"),
+) -> None:
+    from datatui.tui.app import DatatuiApp
+
+    tui_app = DatatuiApp(file_path=file_path)
+    tui_app.run()
+
+
+def main() -> None:
     app()
-
-
-if __name__ == "__main__":
-    main()
