@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="assets/logo.png" alt="DataTUI Logo" width="200">
+  <img src="assets/logo.png" alt="DataTUI Logo" width="400">
 </p>
 
 # DataTUI
@@ -73,3 +73,4 @@ datatui report data/your_dataset.csv --output report.html
 ## Future Roadmap
 
 Development is focused on enhancing multivariate analysis support, increasing visualization fidelity in the TUI, and streamlining the integration of external data connectors.
+
