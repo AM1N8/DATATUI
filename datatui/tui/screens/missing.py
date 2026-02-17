@@ -1,22 +1,29 @@
 from textual.screen import Screen
 from textual.app import ComposeResult
-from textual.containers import ScrollableContainer
+from textual.containers import ScrollableContainer, Vertical
 from textual.widgets import Static, LoadingIndicator, DataTable
 from textual import work
-
-from datatui.tui.widgets.stat_card import StatCard
+from rich.text import Text
+from rich.panel import Panel
+from rich.align import Align
 
 __all__ = ["MissingScreen"]
 
 
 class MissingScreen(Screen):
 
+    CSS_PATH = ["../styles/main.tcss"]
+
     def compose(self) -> ComposeResult:
         yield ScrollableContainer(
-            Static("Missing Values", classes="screen-title"),
-            Static("", id="missing-summary"),
-            DataTable(id="missing-table"),
-            Static("", id="missing-patterns"),
+            Static("Missing Values Analysis", classes="screen-title"),
+            Static(id="missing-dashboard"),
+            Vertical(
+                DataTable(id="missing-table", cursor_type="row"),
+                Static("Missing Patterns", classes="section-header"),
+                DataTable(id="missing-patterns-table", cursor_type="row"),
+                id="missing-details"
+            ),
             id="missing-content",
         )
         yield LoadingIndicator(id="missing-loading")
@@ -50,26 +57,32 @@ class MissingScreen(Screen):
         content.display = True
 
         overall_pct = missing.get("overall_missing_percentage", 0)
-        complete_rows = missing.get("complete_rows", 0)
-        complete_pct = missing.get("complete_rows_percentage", 0)
-        total_cells = missing.get("total_cells", 0)
         total_missing = missing.get("total_missing_values", 0)
-
-        summary = self.query_one("#missing-summary", Static)
-        summary.update(
-            f"  Overall Missing: {overall_pct:.2f}%  |  "
-            f"Complete Rows: {complete_rows:,} ({complete_pct:.1f}%)  |  "
-            f"Total Cells: {total_cells:,}  |  "
-            f"Missing Cells: {total_missing:,}"
-        )
+        
+        dashboard = self.query_one("#missing-dashboard", Static)
+        
+        if total_missing == 0:
+            # Success Panel
+            success_content = Align.center(
+                Text("\n\n✔ No Missing Values Found\n\n", style="bold green", justify="center"),
+                vertical="middle"
+            )
+            dashboard.update(Panel(success_content, title="Analysis Result", border_style="green"))
+            self.query_one("#missing-details").display = False
+            return
+        
+        self.query_one("#missing-details").display = True
+        dashboard.update(Panel(
+            Align.center(f"[bold red]{total_missing:,}[/] missing values ([bold red]{overall_pct:.2f}%[/] of data)"),
+            title="Analysis Checks", border_style="red"
+        ))
 
         table = self.query_one("#missing-table", DataTable)
         table.clear(columns=True)
         table.add_column("Column", key="column")
-        table.add_column("Missing", key="missing")
-        table.add_column("Present", key="present")
+        table.add_column("Missing Count", key="missing")
         table.add_column("Missing %", key="pct")
-        table.add_column("Bar", key="bar")
+        table.add_column("Visual", key="bar")
 
         columns = missing.get("columns", {})
         sorted_cols = sorted(
@@ -79,35 +92,50 @@ class MissingScreen(Screen):
         )
 
         for col_name, col_info in sorted_cols:
+            if col_info.missing_count == 0:
+                continue
+                
             pct = col_info.missing_percentage
-            bar_len = int(pct / 2.5)
-            bar = "\u2588" * bar_len
+            bar_len = int(pct / 2.5) # Max 40 chars
+            bar_len = min(bar_len, 40)
+            
+            if pct < 5: color = "yellow"
+            elif pct < 20: color = "dark_orange"
+            else: color = "red"
+            
+            bar = Text("█" * bar_len, style=color)
+            
             table.add_row(
                 col_name,
                 f"{col_info.missing_count:,}",
-                f"{col_info.present_count:,}",
-                f"{pct:.2f}%",
+                Text(f"{pct:.2f}%", style=color),
                 bar,
             )
 
+        # Patterns Table
+        p_table = self.query_one("#missing-patterns-table", DataTable)
+        p_table.clear(columns=True)
+        p_table.add_column("Pattern (Columns Missing Together)", key="pattern")
+        p_table.add_column("Rows", key="rows")
+        p_table.add_column("%", key="pct")
+        
         patterns = missing.get("patterns", [])
-        if patterns:
-            patterns_widget = self.query_one("#missing-patterns", Static)
-            lines = ["", "  Missing Patterns:"]
-            for i, pattern in enumerate(patterns[:10], 1):
-                cols_str = ", ".join(pattern.columns[:5])
-                if len(pattern.columns) > 5:
-                    cols_str += f" (+{len(pattern.columns) - 5} more)"
-                lines.append(
-                    f"    {i}. [{cols_str}] - "
-                    f"{pattern.count:,} rows ({pattern.percentage:.2f}%)"
-                )
-            patterns_widget.update("\n".join(lines))
+        for pattern in patterns:
+             # pattern is MissingPattern object, not dict
+             cols_str = ", ".join(pattern.columns)
+             count = pattern.count
+             pct = pattern.percentage
+             
+             p_table.add_row(
+                 cols_str,
+                 f"{count:,}",
+                 f"{pct:.2f}%"
+             )
 
     def _render_error(self, message):
         loading = self.query_one("#missing-loading", LoadingIndicator)
         content = self.query_one("#missing-content")
         loading.display = False
         content.display = True
-        summary = self.query_one("#missing-summary", Static)
-        summary.update(f"  Error: {message}")
+        dash = self.query_one("#missing-dashboard", Static)
+        dash.update(f"[red]Error: {message}[/]")

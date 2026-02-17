@@ -1,9 +1,11 @@
 from pathlib import Path
-from typing import Any, Dict, Optional
-from dataclasses import asdict
+from typing import Any, Dict, Optional, List
 from datetime import datetime
+import json
 
 from jinja2 import Environment, FileSystemLoader
+import plotly.graph_objects as go
+import plotly.utils
 
 from datatui.core.analyzer import AnalysisResult
 from datatui.core.loader import DatasetInfo
@@ -18,8 +20,21 @@ def generate_html_report(
     quality: Dict[str, Any],
     dataset_info: Optional[DatasetInfo] = None,
 ) -> str:
+    # Ensure template directory exists
+    if not TEMPLATE_DIR.exists():
+        TEMPLATE_DIR.mkdir(parents=True, exist_ok=True)
+        # Create default template if missing
+        if not (TEMPLATE_DIR / "report.html").exists():
+            _create_default_template()
+
     env = Environment(loader=FileSystemLoader(str(TEMPLATE_DIR)))
     template = env.get_template("report.html")
+
+    # Generate charts
+    charts = {}
+    charts["missing"] = _generate_missing_chart(result.missing)
+    charts["correlations"] = _generate_correlation_heatmap(result.correlations)
+    charts["types"] = _generate_type_chart(result.schema)
 
     schema_rows = _build_schema_rows(result.schema)
     missing_rows = _build_missing_rows(result.missing)
@@ -35,7 +50,7 @@ def generate_html_report(
         "total_rows": f"{result.total_rows:,}",
         "total_columns": result.total_columns,
         "memory_mb": memory_mb,
-        "quality_score": quality.get("overall_score", 0),
+        "quality_score": round(quality.get("overall_score", 0), 1),
         "quality_rating": quality.get("quality_rating", "unknown"),
         "missing_pct": missing_pct,
         "schema_rows": schema_rows,
@@ -44,9 +59,82 @@ def generate_html_report(
         "correlation_rows": correlation_rows,
         "distribution_rows": distribution_rows,
         "generation_time": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+        "charts": charts,
+        "dataset_info": dataset_info,
     }
 
     return template.render(**context)
+
+
+def _generate_missing_chart(missing: Dict[str, Any]) -> str:
+    columns = missing.get("columns", {})
+    sorted_cols = sorted(
+        columns.items(),
+        key=lambda x: x[1].missing_percentage,
+        reverse=True,
+    )
+    # Top 20 columns with missing values
+    top_cols = [c for c in sorted_cols if c[1].missing_count > 0][:20]
+    
+    if not top_cols:
+        return ""
+
+    x = [c[0] for c in top_cols]
+    y = [c[1].missing_percentage for c in top_cols]
+
+    fig = go.Figure(data=[
+        go.Bar(name='Missing %', x=x, y=y, marker_color='rgb(255, 87, 87)')
+    ])
+    fig.update_layout(
+        title="Missing Values by Column (Top 20)",
+        yaxis_title="Percent Missing (%)",
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=350,
+    )
+    return json.dumps(fig.to_dict(), cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def _generate_correlation_heatmap(correlations: Dict[str, Any]) -> str:
+    matrix_data = correlations.get("matrix", [])
+    columns = correlations.get("columns", [])
+    
+    if not matrix_data or not columns:
+        return ""
+
+    fig = go.Figure(data=go.Heatmap(
+        z=matrix_data,
+        x=columns,
+        y=columns,
+        colorscale='RdBu',
+        zmin=-1,
+        zmax=1,
+    ))
+    fig.update_layout(
+        title="Correlation Matrix",
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=500,
+    )
+    return json.dumps(fig.to_dict(), cls=plotly.utils.PlotlyJSONEncoder)
+
+
+def _generate_type_chart(schema: Dict[str, Any]) -> str:
+    type_dist = schema.get("type_distribution", {})
+    if not type_dist:
+        return ""
+        
+    labels = list(type_dist.keys())
+    values = list(type_dist.values())
+    
+    fig = go.Figure(data=[go.Pie(labels=labels, values=values, hole=.3)])
+    fig.update_layout(
+        title="Column Types",
+        template="plotly_white",
+        margin=dict(l=20, r=20, t=40, b=20),
+        height=350,
+    )
+    return json.dumps(fig.to_dict(), cls=plotly.utils.PlotlyJSONEncoder)
 
 
 def _build_schema_rows(schema: Dict[str, Any]):
@@ -61,6 +149,7 @@ def _build_schema_rows(schema: Dict[str, Any]):
             "unique_count": f"{col_schema.unique_count:,}" if hasattr(col_schema, "unique_count") else str(col_schema.get("unique_count", 0)),
             "null_count": f"{col_schema.null_count:,}" if hasattr(col_schema, "null_count") else str(col_schema.get("null_count", 0)),
             "null_pct": round(col_schema.null_percentage, 2) if hasattr(col_schema, "null_percentage") else round(col_schema.get("null_percentage", 0), 2),
+            "memory": f"{col_schema.memory_mb:.2f} MB" if hasattr(col_schema, "memory_mb") else "",
         })
     return rows
 
@@ -115,8 +204,14 @@ def _build_distribution_rows(distributions: Dict[str, Any]):
         rows.append({
             "name": col_name,
             "dist_type": info.get("distribution_type", "unknown"),
-            "is_normal": info.get("is_normal", False),
+            "is_normal": "Yes" if info.get("is_normal", False) else "No",
             "skewness": round(info.get("skewness", 0), 4),
             "kurtosis": round(info.get("kurtosis", 0), 4),
         })
     return rows
+
+def _create_default_template():
+    # Simplest fallback
+    path = TEMPLATE_DIR / "report.html"
+    path.write_text("<html><body><h1>Data Report</h1><p>Please reinstall datatui properly.</p></body></html>")
+

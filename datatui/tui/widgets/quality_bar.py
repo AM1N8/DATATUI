@@ -54,6 +54,16 @@ class QualityBar(Widget):
         try:
             bar = self.query_one("#quality-progress", ProgressBar)
             bar.update(progress=self.score)
+            
+            # Update color based on score
+            bar.ctx.classes.difference_update({"success", "warning", "error"})
+            if self.score >= 75:
+                bar.add_class("success")
+            elif self.score >= 60:
+                bar.add_class("warning")
+            else:
+                bar.add_class("error")
+                
             label = self.query_one("#quality-label", Static)
             label.update(f"{self._label}: {self.score:.1f}/100 ({self.rating.upper()})")
         except Exception:

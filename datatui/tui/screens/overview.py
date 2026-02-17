@@ -1,6 +1,6 @@
 from textual.screen import Screen
 from textual.app import ComposeResult
-from textual.containers import Horizontal, Vertical, ScrollableContainer
+from textual.containers import Horizontal, Vertical, ScrollableContainer, Container
 from textual.widgets import Static, LoadingIndicator, Label, ProgressBar
 from textual import work
 
@@ -11,6 +11,7 @@ from rich.table import Table
 from rich import box
 
 from datatui.tui.widgets.quality_bar import QualityBar
+from datatui.tui.widgets.stat_card import StatCard
 
 __all__ = ["OverviewScreen"]
 
@@ -22,8 +23,8 @@ class OverviewScreen(Screen):
         yield ScrollableContainer(
             Static("Analyzing...", id="overview-banner"),
             
-            # Metrics Grid (using Horizontal which becomes grid via CSS)
-            Horizontal(id="metrics-grid", classes="metrics-grid"),
+            # Metrics Grid (using Container which becomes grid via CSS)
+            Container(id="metrics-grid", classes="metrics-grid"),
 
             # Quality Section
             Vertical(
@@ -73,12 +74,6 @@ class OverviewScreen(Screen):
                 self._render_error, str(e)
             )
 
-    def _create_stat_card(self, label: str, value: str, variant: str = "info") -> Static:
-        return Static(
-            f"\n[{variant} bold]{value}[/]\n[dim]{label}[/]",
-            classes="big-stat"
-        )
-
     def _render_overview(self, schema, quality, missing):
         loading = self.query_one("#overview-loading", LoadingIndicator)
         content = self.query_one("#overview-content")
@@ -98,7 +93,7 @@ class OverviewScreen(Screen):
         banner.update(Panel(banner_content, title="[b]DATATUI[/]", subtitle=f"{len(df):,} rows", border_style="magenta"))
 
         # 2. Metrics Grid
-        grid = self.query_one("#metrics-grid", Horizontal)
+        grid = self.query_one("#metrics-grid", Container)
         grid.remove_children()
         
         # Calculate stats
@@ -106,29 +101,24 @@ class OverviewScreen(Screen):
         mem_str = f"{mem_bytes / 1024 / 1024:.1f} MB"
         
         missing_pct = missing.get("overall_missing_percentage", 0)
-        missing_color = "green" if missing_pct < 5 else "yellow" if missing_pct < 20 else "red"
+        missing_variant = "success" if missing_pct < 5 else "warning" if missing_pct < 20 else "error"
         
-        dup_count = df.is_duplicated().sum() if hasattr(df, "is_duplicated") else 0 # Polars check
-        # Notes: Polars DataFrame doesn't have is_duplicated() directly in all versions, 
-        # usually `df.is_duplicated().sum()` works or `len(df) - len(df.unique())`.
-        # Let's use generic approach:
+        dup_count = df.is_duplicated().sum() if hasattr(df, "is_duplicated") else 0
         try:
-            # Polars
             import polars as pl
             if isinstance(df, pl.DataFrame):
                 dup_count = len(df) - len(df.unique())
             else:
-                # Pandas fallback if ever used
                 dup_count = df.duplicated().sum()
         except:
             dup_count = 0
             
-        dup_pct = (dup_count / len(df)) * 100 if len(df) > 0 else 0
-        
-        grid.mount(self._create_stat_card("Rows", f"{len(df):,}", "cyan"))
-        grid.mount(self._create_stat_card("Columns", f"{len(df.columns)}", "cyan"))
-        grid.mount(self._create_stat_card("Memory", mem_str, "magenta"))
-        grid.mount(self._create_stat_card("Missing", f"{missing_pct:.1f}%", missing_color))
+        dup_count = 0
+            
+        grid.mount(StatCard(label="Rows", value=f"{len(df):,}", variant="info", color="#58a6ff"))
+        grid.mount(StatCard(label="Columns", value=f"{len(df.columns)}", variant="info", color="#58a6ff"))
+        grid.mount(StatCard(label="Memory", value=mem_str, variant="info", color="#d29922"))
+        grid.mount(StatCard(label="Missing", value=f"{missing_pct:.1f}%", variant=missing_variant))
 
         # 3. Quality Score
         q_score = quality.get("overall_score", 0)
@@ -164,16 +154,17 @@ class OverviewScreen(Screen):
         
         has_alerts = False
         
-        if missing_pct > 0:
-            level = "[red]" if missing_pct > 20 else "[yellow]" if missing_pct > 5 else "[blue]"
-            alerts_table.add_row(f"{level}⚠[/] {missing_pct:.1f}% data missing")
+        if missing_pct > 5:
+            level = "red" if missing_pct > 20 else "yellow"
+            alerts_table.add_row(f"[{level}]⚠[/] {missing_pct:.1f}% data missing")
             has_alerts = True
             
-        if dup_pct > 0:
+        if dup_count > 0:
+             dup_pct = (dup_count / len(df)) * 100
              alerts_table.add_row(f"[yellow]⚠[/] {dup_count:,} duplicates ({dup_pct:.1f}%)")
              has_alerts = True
              
-        if q_score < 60:
+        if q_score < 70:
             alerts_table.add_row(f"[red]⚠[/] Low Quality Score: {q_score:.1f}")
             has_alerts = True
             
@@ -186,7 +177,7 @@ class OverviewScreen(Screen):
             has_alerts = True
 
         if not has_alerts:
-            alerts_table.add_row("[green]✔[/] No critical issues found")
+            alerts_table.add_row("[green]✔[/] No critical data issues found")
 
         alerts_panel.update(Panel(alerts_table, title="System Alerts", border_style="yellow"))
 

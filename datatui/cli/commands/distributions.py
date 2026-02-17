@@ -2,6 +2,7 @@ from pathlib import Path
 from typing import Optional
 
 import typer
+from rich.text import Text
 
 from datatui.cli.output.console import (
     console,
@@ -79,7 +80,7 @@ def run_distributions(
         from rich.table import Table
         from rich import box as rich_box
 
-        detail = Table(box=rich_box.ROUNDED, border_style="cyan", show_lines=True)
+        detail = Table(box=rich_box.ROUNDED, border_style="blue", show_lines=True)
         detail.add_column("Property", style="bold cyan", min_width=20)
         detail.add_column("Value", style="white", min_width=30)
 
@@ -103,7 +104,7 @@ def run_distributions(
         normality = col_dist.get("normality_tests", {})
         if normality:
             print_section("Normality Tests")
-            norm_table = Table(box=rich_box.ROUNDED, border_style="cyan", show_lines=False)
+            norm_table = Table(box=rich_box.ROUNDED, border_style="blue", show_lines=False)
             norm_table.add_column("Test", style="bold cyan", min_width=22)
             norm_table.add_column("Statistic", justify="right")
             norm_table.add_column("P-Value", justify="right")
@@ -126,19 +127,42 @@ def run_distributions(
 
         histogram = col_dist.get("histogram", {})
         counts = histogram.get("counts", [])
-        if counts:
+        edges = histogram.get("edges", [])
+        
+        if counts and len(counts) > 0:
             print_section("Histogram")
-            max_count = max(counts) if counts else 1
-            bar_width = 40
-            for i, count in enumerate(counts):
-                bar_len = int((count / max_count) * bar_width)
-                bar = ">" * bar_len
-                edges = histogram.get("edges", [])
-                if i < len(edges) - 1:
-                    label = f"{edges[i]:.2f}"
-                else:
-                    label = ""
-                console.print(f"  {label:>10} | [cyan]{bar}[/] {count}")
+            try:
+                import plotext as plt
+                
+                plt.clf()
+                plt.plotsize(80, 20)
+                plt.theme("dark")
+                plt.title(f"Histogram: {column}")
+                
+                # plotext.bar takes x and y
+                # We have bins edges. We need centers or just use range.
+                # counts length is N, edges length is N+1
+                bar_labels = [f"{e:.2f}" for e in edges[:-1]]
+                
+                plt.bar(bar_labels, counts, color="blue", label=column)
+                plt.xlabel("Value")
+                plt.ylabel("Frequency")
+                
+                plot_str = plt.build()
+                console.print(Text.from_ansi(plot_str))
+                
+            except ImportError:
+                # Fallback to simple rich bars
+                max_count = max(counts) if counts else 1
+                bar_width = 40
+                for i, count in enumerate(counts):
+                    bar_len = int((count / max_count) * bar_width)
+                    bar = "█" * bar_len
+                    if i < len(edges) - 1:
+                        label = f"{edges[i]:.2f}"
+                    else:
+                        label = ""
+                    console.print(f"  {label:>10} | [cyan]{bar}[/] {count}")
     else:
         if json_output:
             print_json_output(dist_data)

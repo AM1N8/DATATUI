@@ -222,3 +222,81 @@ Horizontal {
     padding: 1 2;
     width: 1fr;
 }
+
+/* Color Utilities */
+.success { color: #3fb950; }
+.warning { color: #d29922; }
+.error { color: #f85149; }
+.critical { color: #bd2c00; text-style: bold; }
+.neutral { color: #8b949e; }
+.info { color: #58a6ff; }
+
+/* ProgressBar Colors */
+ProgressBar.success > .bar--complete { background: #3fb950; }
+ProgressBar.warning > .bar--complete { background: #d29922; }
+ProgressBar.error > .bar--complete { background: #f85149; }
+
+/* StatCard Enhancements */
+StatCard.success { border: solid #3fb950; }
+StatCard.warning { border: solid #d29922; }
+StatCard.error { border: solid #f85149; }
+StatCard.info { border: solid #58a6ff; }
+
+/* Tabs */
+Tabs {
+    dock: top;
+    background: #0d1117;
+    border-bottom: solid #30363d;
+    height: 3;
+    margin-bottom: 1;
+}
+
+Tab {
+    background: #0d1117;
+    color: #8b949e;
+    border: none;
+    padding: 0 2;
+    height: 3;
+    content-align: center middle; 
+}
+
+Tab:hover {
+    color: #58a6ff;
+    background: #161b22;
+}
+
+Tab.-active {
+    background: #0d1117;
+    border-bottom: solid #f78166;
+    color: #f78166;
+    text-style: bold;
+}
+
+/* Search Bar */
+.search-input {
+    dock: top;
+    margin: 0 0 1 0;
+    border: solid #30363d;
+    background: #0d1117;
+    height: 3;
+}
+.search-input:focus {
+    border: solid #58a6ff;
+}
+
+/* Heatmap */
+.heatmap-cell {
+    width: 3;
+    content-align: center middle;
+}
+
+/* Badges */
+.badge {
+    background: #161b22;
+    color: #c9d1d9;
+    padding: 0 1;
+    border: solid #30363d;
+}
+.badge.success { border: solid #3fb950; color: #3fb950; }
+.badge.warning { border: solid #d29922; color: #d29922; }
+.badge.error { border: solid #f85149; color: #f85149; }

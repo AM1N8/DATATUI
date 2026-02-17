@@ -1,7 +1,7 @@
 from typing import Any, Dict, List, Optional
-
 from rich.table import Table
 from rich import box
+from rich.text import Text
 
 from datatui.cli.output.themes import (
     PRIMARY,
@@ -39,12 +39,25 @@ __all__ = [
 ]
 
 
+def _make_bar(value: float, max_value: float = 1.0, width: int = 20, color: str = "cyan") -> str:
+    """Create a unicode block bar."""
+    if max_value == 0:
+        return ""
+    normalized = min(max(value / max_value, 0), 1)
+    bar_len = int(normalized * width)
+    return f"[{color}]" + "█" * bar_len + "[/]" + " " * (width - bar_len)
+
+
+def _make_sparkline(values: List[float]) -> str:
+     # Simple sparkline logic if needed
+     pass
+
 def build_inspect_table(info: Dict[str, Any]) -> Table:
     table = Table(
         title="Dataset Overview",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=True,
     )
     table.add_column("Property", style=PRIMARY, min_width=20)
@@ -66,16 +79,16 @@ def build_schema_table(schema: Dict[str, Any]) -> Table:
         title="Schema",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=20)
-    table.add_column("DType", style=DIM, min_width=12)
-    table.add_column("Type", style="white", min_width=12)
-    table.add_column("Semantic", style="white", min_width=12)
+    table.add_column("DType", style=DIM, min_width=10)
+    table.add_column("Type", style="white", min_width=10)
+    table.add_column("Semantic", style="white", min_width=10)
     table.add_column("Unique", justify="right", min_width=8)
     table.add_column("Cardinality", style=DIM, min_width=10)
-    table.add_column("Nulls", justify="right", min_width=10)
+    table.add_column("Nulls", justify="right", min_width=8)
     table.add_column("Null %", justify="right", min_width=8)
     table.add_column("Memory", justify="right", min_width=8)
 
@@ -83,9 +96,16 @@ def build_schema_table(schema: Dict[str, Any]) -> Table:
     for col_name, col_schema in columns.items():
         null_pct = col_schema.null_percentage
         null_style = get_missing_style(null_pct)
+        
+        # Color code DType
+        dtype_style = "cyan"
+        if "Int" in col_schema.dtype or "Float" in col_schema.dtype: dtype_style = "cyan"
+        elif "String" in col_schema.dtype: dtype_style = "yellow"
+        elif "Date" in col_schema.dtype: dtype_style = "magenta"
+        
         table.add_row(
-            col_schema.column_name,
-            col_schema.dtype,
+            col_name,
+            f"[{dtype_style}]{col_schema.dtype}[/]",
             col_schema.data_type.value,
             col_schema.semantic_type.value,
             f"{col_schema.unique_count:,}",
@@ -102,7 +122,7 @@ def build_numeric_stats_table(statistics: Dict[str, Any]) -> Table:
         title="Numeric Statistics",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=16)
@@ -123,6 +143,10 @@ def build_numeric_stats_table(statistics: Dict[str, Any]) -> Table:
     for col_name, col_stats in stats_data.items():
         if not isinstance(col_stats, NumericStats):
             continue
+            
+        skew = col_stats.skewness
+        skew_style = "green" if abs(skew) < 0.5 else "yellow" if abs(skew) < 1.0 else "red"
+            
         table.add_row(
             col_name,
             f"{col_stats.count:,}",
@@ -133,7 +157,7 @@ def build_numeric_stats_table(statistics: Dict[str, Any]) -> Table:
             format_number(col_stats.median),
             format_number(col_stats.q75),
             format_number(col_stats.max),
-            format_number(col_stats.skewness, 3),
+            f"[{skew_style}]{format_number(skew, 3)}[/]",
             format_number(col_stats.kurtosis, 3),
         )
     return table
@@ -144,7 +168,7 @@ def build_categorical_stats_table(statistics: Dict[str, Any]) -> Table:
         title="Categorical Statistics",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=16)
@@ -178,7 +202,7 @@ def build_datetime_stats_table(statistics: Dict[str, Any]) -> Table:
         title="Datetime Statistics",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=16)
@@ -213,7 +237,7 @@ def build_text_stats_table(statistics: Dict[str, Any]) -> Table:
         title="Text Statistics",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=16)
@@ -247,17 +271,17 @@ def build_text_stats_table(statistics: Dict[str, Any]) -> Table:
 
 def build_missing_table(missing: Dict[str, Any]) -> Table:
     table = Table(
-        title="Missing Values",
+        title="Missing Values Analysis",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=20)
     table.add_column("Missing", justify="right")
     table.add_column("Present", justify="right")
     table.add_column("Missing %", justify="right")
-    table.add_column("Bar", min_width=20)
+    table.add_column("Visual", min_width=20)
 
     columns = missing.get("columns", {})
     sorted_cols = sorted(
@@ -269,8 +293,13 @@ def build_missing_table(missing: Dict[str, Any]) -> Table:
     for col_name, col_info in sorted_cols:
         pct = col_info.missing_percentage
         style = get_missing_style(pct)
-        bar_len = int(pct / 5)
-        bar = "[red]" + ">" * bar_len + "[/]" + " " * (20 - bar_len)
+        # Use simple gradient coloring for bar
+        if pct < 5: bar_color = "green"
+        elif pct < 20: bar_color = "yellow"
+        else: bar_color = "red"
+        
+        bar = _make_bar(pct, 100.0, width=20, color=bar_color)
+        
         table.add_row(
             col_name,
             f"{col_info.missing_count:,}",
@@ -286,11 +315,11 @@ def build_missing_patterns_table(patterns: List[Any]) -> Table:
         title="Missing Patterns",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("#", style=DIM, justify="right")
-    table.add_column("Columns", style=PRIMARY, min_width=30)
+    table.add_column("Columns Co-Occurrence", style=PRIMARY, min_width=30)
     table.add_column("Count", justify="right")
     table.add_column("Percentage", justify="right")
 
@@ -312,7 +341,7 @@ def build_outliers_table(outliers: Dict[str, Any]) -> Table:
         title="Outlier Detection",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=16)
@@ -321,12 +350,13 @@ def build_outliers_table(outliers: Dict[str, Any]) -> Table:
     table.add_column("Z-Score", justify="right")
     table.add_column("MAD", justify="right")
     table.add_column("Outlier %", justify="right")
-    table.add_column("IQR Lower", justify="right")
-    table.add_column("IQR Upper", justify="right")
+    table.add_column("IQR Bounds", justify="right")
 
     for col_name, info in outliers.items():
         pct = info.outlier_percentage
         style = get_outlier_style(pct)
+        bounds = f"[{info.iqr_lower_bound:.2f}, {info.iqr_upper_bound:.2f}]"
+        
         table.add_row(
             col_name,
             f"{info.total_count:,}",
@@ -334,8 +364,7 @@ def build_outliers_table(outliers: Dict[str, Any]) -> Table:
             f"{info.zscore_outlier_count:,}",
             f"{info.mad_outlier_count:,}",
             f"[{style}]{format_percentage(pct)}[/]",
-            format_number(info.iqr_lower_bound),
-            format_number(info.iqr_upper_bound),
+            bounds,
         )
     return table
 
@@ -350,7 +379,7 @@ def build_correlation_matrix_table(
         title="Correlation Matrix",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=True,
     )
     table.add_column("", style=PRIMARY, min_width=12)
@@ -363,6 +392,7 @@ def build_correlation_matrix_table(
             if i < len(matrix) and j < len(matrix[i]):
                 val = matrix[i][j]
                 style = get_correlation_style(val)
+                # Add background color block? Too complex for simple table. Text color is fine.
                 cells.append(f"[{style}]{val:.2f}[/]")
             else:
                 cells.append("-")
@@ -377,29 +407,28 @@ def build_top_correlations_table(
         title="Top Correlations",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("#", style=DIM, justify="right")
     table.add_column("Column 1", style=PRIMARY)
     table.add_column("Column 2", style=PRIMARY)
     table.add_column("Correlation", justify="right")
-    table.add_column("Method", style=DIM)
     table.add_column("Strength", min_width=15)
 
     for i, pair in enumerate(correlations, 1):
         val = pair.get("correlation", 0)
         style = get_correlation_style(val)
-        abs_val = abs(val)
-        bar_len = int(abs_val * 15)
-        bar_char = ">" if val >= 0 else "<"
-        bar = f"[{style}]" + bar_char * bar_len + "[/]"
+        
+        bar_color = "green" if val > 0 else "red"
+        # Use simple bar
+        bar = _make_bar(abs(val), 1.0, width=15, color=bar_color)
+        
         table.add_row(
             str(i),
             pair.get("column1", ""),
             pair.get("column2", ""),
             f"[{style}]{val:.4f}[/]",
-            pair.get("method", ""),
             bar,
         )
     return table
@@ -410,7 +439,7 @@ def build_distributions_table(distributions: Dict[str, Any]) -> Table:
         title="Distributions",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Column", style=PRIMARY, min_width=16)
@@ -419,26 +448,26 @@ def build_distributions_table(distributions: Dict[str, Any]) -> Table:
     table.add_column("Skewness", justify="right")
     table.add_column("Kurtosis", justify="right")
     table.add_column("Min", justify="right")
-    table.add_column("Q25", justify="right")
     table.add_column("Median", justify="right")
-    table.add_column("Q75", justify="right")
     table.add_column("Max", justify="right")
 
     dist_data = distributions.get("distributions", {})
     for col_name, info in dist_data.items():
         is_normal = info.get("is_normal", False)
-        normal_str = f"[{SUCCESS}]Yes[/]" if is_normal else f"[{DIM}]No[/]"
+        normal_str = f"[{SUCCESS}]Yes[/]" if is_normal else f"[{ERROR}]No[/]"
         quartiles = info.get("quartiles", {})
+        
+        skew = info.get("skewness", 0)
+        skew_style = "green" if abs(skew) < 0.5 else "red"
+        
         table.add_row(
             col_name,
             info.get("distribution_type", "unknown"),
             normal_str,
-            format_number(info.get("skewness", 0), 3),
+            f"[{skew_style}]{format_number(skew, 3)}[/]",
             format_number(info.get("kurtosis", 0), 3),
             format_number(quartiles.get("min", 0)),
-            format_number(quartiles.get("q25", 0)),
             format_number(quartiles.get("median", 0)),
-            format_number(quartiles.get("q75", 0)),
             format_number(quartiles.get("max", 0)),
         )
     return table
@@ -449,7 +478,7 @@ def build_quality_table(quality: Dict[str, Any]) -> Table:
         title="Data Quality Score",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=True,
     )
     table.add_column("Metric", style=PRIMARY, min_width=25)
@@ -496,16 +525,15 @@ def build_type_distribution_table(type_dist: Dict[str, int]) -> Table:
         title="Column Type Distribution",
         box=box.ROUNDED,
         title_style=HEADER,
-        border_style="cyan",
+        border_style="blue",
         show_lines=False,
     )
     table.add_column("Type", style=PRIMARY, min_width=15)
     table.add_column("Count", justify="right", min_width=8)
-    table.add_column("Bar", min_width=25)
+    table.add_column("Visual", min_width=25)
 
     total = sum(type_dist.values()) if type_dist else 1
     for dtype, count in sorted(type_dist.items(), key=lambda x: x[1], reverse=True):
-        bar_len = int((count / total) * 25)
-        bar = "[cyan]" + ">" * bar_len + "[/]"
+        bar = _make_bar(count, total, width=25, color="cyan")
         table.add_row(dtype, str(count), bar)
     return table

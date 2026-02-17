@@ -1,25 +1,38 @@
 from textual.screen import Screen
 from textual.app import ComposeResult
 from textual.containers import Horizontal, Vertical, ScrollableContainer
-from textual.widgets import Static, LoadingIndicator, DataTable
+from textual.widgets import Static, LoadingIndicator, DataTable, Input
 from textual import work
+from rich.text import Text
 
 __all__ = ["SchemaScreen"]
 
 
 class SchemaScreen(Screen):
 
+    CSS_PATH = ["../styles/main.tcss"]
+
     def compose(self) -> ComposeResult:
         yield ScrollableContainer(
-            Static("Schema", classes="screen-title"),
-            DataTable(id="schema-table"),
-            Static("", id="schema-detail"),
+            Static("Schema Analysis", classes="screen-title"),
+            Input(placeholder="Search columns...", id="schema-search", classes="search-input"),
+            Horizontal(
+                DataTable(id="schema-table", cursor_type="row"),
+                Vertical(
+                    Static("Select a column to see details", id="schema-detail"),
+                    classes="detail-panel"
+                ),
+            ),
             id="schema-content",
         )
         yield LoadingIndicator(id="schema-loading")
 
     def on_mount(self) -> None:
         self.load_data()
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        if event.input.id == "schema-search":
+            self._filter_table(event.value)
 
     def load_data(self) -> None:
         loading = self.query_one("#schema-loading", LoadingIndicator)
@@ -48,52 +61,115 @@ class SchemaScreen(Screen):
 
         table = self.query_one("#schema-table", DataTable)
         table.clear(columns=True)
-
-        table.add_column("Column", key="column")
-        table.add_column("DType", key="dtype")
-        table.add_column("Type", key="type")
-        table.add_column("Semantic", key="semantic")
-        table.add_column("Unique", key="unique")
-        table.add_column("Cardinality", key="cardinality")
-        table.add_column("Nulls", key="nulls")
-        table.add_column("Null %", key="null_pct")
-        table.add_column("Memory", key="memory")
+        
+        # Define columns with styled headers
+        table.add_column(Text("Column", style="green bold"), key="column")
+        table.add_column(Text("Type", style="cyan bold"), key="type")
+        table.add_column(Text("Nulls", style="red bold"), key="nulls")
+        table.add_column(Text("Null %", style="red bold"), key="null_pct")
+        table.add_column(Text("Unique", style="blue bold"), key="unique")
+        table.add_column(Text("Memory", style="magenta bold"), key="memory")
 
         columns = schema.get("columns", {})
-        self._schema_data = columns
+        self._schema_data = columns # Store for details
+        self._all_rows = [] # Store for filtering
 
         for col_name, col_schema in columns.items():
+            # Style Type column
+            dtype_val = col_schema.data_type.value
+            if dtype_val == "Numeric": type_color = "cyan"
+            elif dtype_val == "Categorical": type_color = "green"
+            elif dtype_val == "Datetime": type_color = "magenta"
+            else: type_color = "yellow"
+            
+            type_cell = Text(dtype_val, style=type_color)
+
+            # Style Null % column
             null_pct = col_schema.null_percentage
+            if null_pct == 0:
+                null_style = "green"
+                bar = ""
+            elif null_pct < 10:
+                null_style = "yellow"
+                bar = "▂"
+            else:
+                null_style = "red"
+                bar = "▃" if null_pct < 50 else "▄"
+            
+            null_pct_cell = Text(f"{null_pct:.1f}% {bar}", style=null_style)
+
             memory = col_schema.memory_mb
             mem_str = f"{memory:.2f} MB" if memory >= 1 else f"{memory * 1024:.1f} KB"
 
-            table.add_row(
-                col_schema.column_name,
-                col_schema.dtype,
-                col_schema.data_type.value,
-                col_schema.semantic_type.value,
-                f"{col_schema.unique_count:,}",
-                col_schema.cardinality.value,
+            row = [
+                col_name,
+                col_schema.dtype, # Raw dtype
+                type_cell, # Visual Type
                 f"{col_schema.null_count:,}",
-                f"{null_pct:.2f}%",
+                null_pct_cell,
+                f"{col_schema.unique_count:,}",
                 mem_str,
-            )
+            ]
+            
+            # Simplified columns for table (merged some)
+            visual_row = [
+                Text(col_name, style="bold"),
+                type_cell,
+                str(col_schema.null_count),
+                null_pct_cell,
+                str(col_schema.unique_count),
+                Text(mem_str, style="dim magenta")
+            ]
+            
+            self._all_rows.append((col_name, visual_row))
+            table.add_row(*visual_row, key=col_name)
+
+    def _filter_table(self, query: str) -> None:
+        table = self.query_one("#schema-table", DataTable)
+        table.clear()
+        
+        query = query.lower()
+        for col_name, row_data in self._all_rows:
+            if query in col_name.lower():
+                table.add_row(*row_data, key=col_name)
 
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         if not hasattr(self, "_schema_data"):
             return
 
-        row_index = event.cursor_row
-        columns = list(self._schema_data.values())
-        if 0 <= row_index < len(columns):
-            col_schema = columns[row_index]
+        # Get key (col name) from selection
+        try:
+            row_key = event.row_key.value
+        except:
+            # Fallback if row key usage is tricky, use cursor row index mapped to filtered list? No, key is safer.
+            # But wait, DataTable row keys are maintained even after filtering? Yes if added with key.
+            return
+
+        col_schema = self._schema_data.get(row_key)
+        if col_schema:
             detail = self.query_one("#schema-detail", Static)
-            samples = ", ".join(str(v) for v in col_schema.sample_values[:5])
-            detail.update(
-                f"\n  Selected: {col_schema.column_name}\n"
-                f"  Type: {col_schema.data_type.value} | Semantic: {col_schema.semantic_type.value}\n"
-                f"  Samples: {samples}\n"
-            )
+            
+            samples = ", ".join(str(v) for v in col_schema.sample_values[:8])
+            
+            # Format nicely
+            content = f"""
+[bold gold1]{col_schema.column_name}[/]
+[dim]--------------------------------[/]
+[bold]Data Type:[/][cyan] {col_schema.dtype}[/]
+[bold]Semantic Type:[/][{col_schema.data_type.value == 'Numeric' and 'cyan' or 'green'}] {col_schema.semantic_type.value}[/]
+
+[bold]Statistics:[/][dim]
+- Unique values: {col_schema.unique_count:,}
+- Null values: {col_schema.null_count:,} ({col_schema.null_percentage:.2f}%)
+- Cardinality: {col_schema.cardinality.value}
+- Memory Usage: {col_schema.memory_mb:.2f} MB
+[/]
+
+[bold]Sample Values:[/][italic]
+{samples}
+[/]
+"""
+            detail.update(content)
 
     def _render_error(self, message):
         loading = self.query_one("#schema-loading", LoadingIndicator)
@@ -101,4 +177,4 @@ class SchemaScreen(Screen):
         loading.display = False
         content.display = True
         detail = self.query_one("#schema-detail", Static)
-        detail.update(f"  Error: {message}")
+        detail.update(f"[red]Error loading schema: {message}[/]")

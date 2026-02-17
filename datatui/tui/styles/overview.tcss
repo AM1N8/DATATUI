@@ -3,7 +3,7 @@
     background: #0d1117;
     color: #58a6ff;
     content-align: center middle;
-    margin: 1 0;
+    margin: 0 0 1 0;
     text-align: center;
     border-bottom: solid #30363d;
     height: auto;
@@ -14,9 +14,17 @@
     layout: grid;
     grid-size: 4;
     grid-columns: 1fr 1fr 1fr 1fr;
-    grid-gutter: 1;
+    grid-gutter: 1 2;
     margin-bottom: 1;
     height: auto;
+}
+
+#metrics-grid > StatCard {
+    width: 1fr;
+    height: 3;
+    min-height: 3;
+    margin: 0;
+    padding: 0 1; 
 }
 
 .big-stat {
@@ -68,7 +76,7 @@
     border: tall #30363d;
     padding: 1 2;
     height: auto;
-    min-height: 15;
+    min-height: 10;
 }
 
 .alerts-panel {
@@ -76,7 +84,7 @@
     border: tall #30363d;
     padding: 1 2;
     height: auto;
-    min-height: 15;
+    min-height: 10;
 }
 
 .stat-success { color: #3fb950; }
