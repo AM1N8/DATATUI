@@ -4,7 +4,7 @@
 
 # DataTUI
 
-DataTUI is a professional terminal-based toolkit designed for efficient exploratory data analysis (EDA). It provides a suite of tools to inspect, analyze, and visualize datasets directly from the command line or through an interactive text-based user interface (TUI).
+DataTUI is a terminal-based toolkit designed for efficient exploratory data analysis (EDA). It provides a suite of tools to inspect, analyze, and visualize datasets directly from the command line or through an interactive text-based user interface (TUI).
 
 ## Current Status
 
@@ -73,5 +73,6 @@ datatui report data/your_dataset.csv --output report.html
 ## Future Roadmap
 
 Development is focused on enhancing multivariate analysis support, increasing visualization fidelity in the TUI, and streamlining the integration of external data connectors.
+
 
 
