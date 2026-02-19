@@ -123,6 +123,26 @@ def report(
 
 
 @app.command()
+def visualize(
+    file: Path = typer.Argument(..., help="Path to the dataset file"),
+    type: str = typer.Option("batch", "--type", "-t", help="Type of plot: histogram, box, heatmap, scatter, pair, violin, dist, categorical, missing, timeseries"),
+    column: Optional[str] = typer.Option(None, "--column", "-c", help="Column name for single-column plots"),
+    columns: Optional[str] = typer.Option(None, "--columns", help="Comma-separated column names for multi-column plots"),
+    x: Optional[str] = typer.Option(None, "--x", help="X column/Date column"),
+    y: Optional[str] = typer.Option(None, "--y", help="Y column/Value column"),
+    hue: Optional[str] = typer.Option(None, "--hue", help="Grouping column"),
+    output: Optional[Path] = typer.Option(None, "--output", "-o", help="Output file path"),
+    format: str = typer.Option("png", "--format", help="Output format (png, svg, pdf)"),
+    dpi: int = typer.Option(300, "--dpi", help="DPI (default: 300)"),
+    top_n: int = typer.Option(20, "--top-n", help="Top N categories (default: 20)"),
+    batch: bool = typer.Option(False, "--batch", help="Generate all recommended plots"),
+    output_dir: Optional[Path] = typer.Option(None, "--output-dir", help="Output directory for batch mode"),
+) -> None:
+    from datatui.cli.commands.visualize import run_visualize
+    run_visualize(file, type, column, columns, x, y, hue, output, format, dpi, top_n, batch, output_dir)
+
+
+@app.command()
 def tui(
     file_path: Path = typer.Argument(..., help="Path to the dataset file to explore"),
     theme: str = typer.Option("dark", "--theme", "-t", help="TUI theme: dark"),

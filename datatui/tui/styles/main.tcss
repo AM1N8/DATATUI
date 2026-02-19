@@ -44,6 +44,10 @@ Footer {
     color: #ffffff;
 }
 
+.hidden {
+    display: none;
+}
+
 #main-content {
     background: #0d1117;
     padding: 1 2;
@@ -300,3 +304,80 @@ Tab.-active {
 .badge.success { border: solid #3fb950; color: #3fb950; }
 .badge.warning { border: solid #d29922; color: #d29922; }
 .badge.error { border: solid #f85149; color: #f85149; }
+/* Visualize Screen */
+.viz-left-panel {
+    width: 45;
+    background: #161b22;
+    border-right: solid #30363d;
+    padding: 1;
+}
+
+.viz-right-panel {
+    width: 1fr;
+    background: #0d1117;
+    padding: 1;
+}
+
+#column-selectors {
+    height: auto;
+    margin: 1 0;
+    border: solid #30363d;
+    padding: 1;
+}
+
+.config-group {
+    margin-bottom: 1;
+}
+
+.config-row {
+    height: auto;
+}
+
+#viz-preview-container {
+    height: 1fr;
+    border: solid #30363d;
+    background: #000000;
+}
+
+#viz-preview-content {
+    height: 100%;
+    width: 100%;
+    content-align: center middle;
+}
+
+#viz-preview-loading {
+    height: 100%;
+}
+
+.status-log {
+    height: 3;
+    background: #1c2129;
+    color: #c9d1d9;
+    padding: 0 1;
+    margin-top: 1;
+}
+
+#action-buttons {
+    height: 3;
+    margin: 1 0;
+}
+
+#action-buttons Button {
+    width: 1fr;
+    margin: 0 1;
+}
+
+.full-width {
+    width: 100%;
+}
+
+.spacer {
+    height: 1fr;
+}
+
+#multi-col-list {
+    height: 15;
+    border: solid #30363d;
+    background: #161b22;
+    padding: 0 1;
+}

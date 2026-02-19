@@ -1,0 +1,70 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>DataTUI Visualization Gallery</title>
+        <style>
+            body { font-family: sans-serif; background: #0d1117; color: #c9d1d9; padding: 20px; }
+            .gallery { display: grid; grid-template-columns: repeat(auto-fill, minmax(400px, 1fr)); gap: 20px; }
+            .card { background: #161b22; border: 1px solid #30363d; border-radius: 6px; padding: 10px; }
+            .card img { width: 100%; border-radius: 4px; }
+            .card h3 { margin: 10px 0 5px 0; color: #58a6ff; }
+            .card p { margin: 0; font-size: 0.9em; color: #8b949e; }
+        </style>
+    </head>
+    <body>
+        <h1>DataTUI Visualization Gallery</h1>
+        <div class="gallery">
+    
+            <div class="card">
+                <img src="hist_DEP_DELAY.png" alt="histogram">
+                <h3>Histogram</h3>
+                <p>DEP_DELAY</p>
+            </div>
+        
+            <div class="card">
+                <img src="hist_ARR_DELAY.png" alt="histogram">
+                <h3>Histogram</h3>
+                <p>ARR_DELAY</p>
+            </div>
+        
+            <div class="card">
+                <img src="hist_AIR_TIME.png" alt="histogram">
+                <h3>Histogram</h3>
+                <p>AIR_TIME</p>
+            </div>
+        
+            <div class="card">
+                <img src="hist_DISTANCE.png" alt="histogram">
+                <h3>Histogram</h3>
+                <p>DISTANCE</p>
+            </div>
+        
+            <div class="card">
+                <img src="hist_DEP_TIME.png" alt="histogram">
+                <h3>Histogram</h3>
+                <p>DEP_TIME</p>
+            </div>
+        
+            <div class="card">
+                <img src="box_comparison.png" alt="box">
+                <h3>Box</h3>
+                <p>['DEP_DELAY', 'ARR_DELAY', 'AIR_TIME', 'DISTANCE', 'DEP_TIME', 'ARR_TIME']</p>
+            </div>
+        
+            <div class="card">
+                <img src="correlation_heatmap.png" alt="heatmap">
+                <h3>Heatmap</h3>
+                <p>['DEP_DELAY', 'ARR_DELAY', 'AIR_TIME', 'DISTANCE', 'DEP_TIME', 'ARR_TIME']</p>
+            </div>
+        
+            <div class="card">
+                <img src="missing_pattern.png" alt="missing">
+                <h3>Missing</h3>
+                <p>None</p>
+            </div>
+        
+        </div>
+    </body>
+    </html>
+    

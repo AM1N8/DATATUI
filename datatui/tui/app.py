@@ -18,6 +18,7 @@ from datatui.tui.screens.missing import MissingScreen
 from datatui.tui.screens.outliers import OutliersScreen
 from datatui.tui.screens.correlations import CorrelationsScreen
 from datatui.tui.screens.distributions import DistributionsScreen
+from datatui.tui.screens.visualize import VisualizeScreen
 
 __all__ = ["DatatuiApp"]
 
@@ -29,6 +30,7 @@ SCREENS = {
     "outliers": OutliersScreen,
     "correlations": CorrelationsScreen,
     "distributions": DistributionsScreen,
+    "visualize": VisualizeScreen,
 }
 
 SCREEN_LABELS = [
@@ -39,6 +41,7 @@ SCREEN_LABELS = [
     ("5  Outliers", "outliers"),
     ("6  Correlations", "correlations"),
     ("7  Distributions", "distributions"),
+    ("8  Visualize", "visualize"),
 ]
 
 
@@ -56,6 +59,8 @@ class DatatuiApp(App):
         Binding("5", "switch_screen('outliers')", "Outliers", show=True),
         Binding("6", "switch_screen('correlations')", "Correlations", show=True),
         Binding("7", "switch_screen('distributions')", "Distributions", show=True),
+        Binding("8", "switch_screen('visualize')", "Visualize", show=True),
+        Binding("v", "switch_screen('visualize')", "Visualize", show=False),
         Binding("q", "quit", "Quit", show=True),
         Binding("r", "refresh_data", "Refresh", show=True),
     ]
