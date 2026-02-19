@@ -1,4 +1,3 @@
-<<<<<<< HEAD
 <p align="center">
   <img src="assets/logo.png" alt="DataTUI Logo" width="200">
 </p>
